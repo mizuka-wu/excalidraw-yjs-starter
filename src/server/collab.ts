@@ -1,8 +1,8 @@
 import { Server } from "socket.io";
 import { YSocketIO } from "y-socket.io/dist/server";
-import type { createServer } from "http";
+import type { createServer as httpCreateServer } from "http";
 
-export function createServer(server: ReturnType<typeof createServer>) {
+export function createServer(server: ReturnType<typeof httpCreateServer>) {
   const io = new Server(server, {
     cors: {
       origin: "*",
