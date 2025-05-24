@@ -47,11 +47,9 @@ export const useCollab = (
 
     const url = `${location.protocol === "https:" ? "wss" : "ws"}://${
       location.host
-    }/collab`;
+    }`;
     const socketIoProvider = id
-      ? new SocketIOProvider(url, id, ydoc, {
-          autoConnect: true,
-        })
+      ? new SocketIOProvider(url, `${id}`, ydoc, {})
       : null;
 
     const undoManagerOptions = !!(
