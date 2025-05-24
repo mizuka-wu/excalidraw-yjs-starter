@@ -8,9 +8,5 @@ export function createServer(server: ReturnType<typeof httpCreateServer>) {
    * @see https://github.com/ivan-topp/y-socket.io?tab=readme-ov-file#server-api
    */
   const ySocketIOServer = new YSocketIO(io);
-  function consoleDocuments() {
-    console.log(ySocketIOServer.documents.size);
-  }
-
-  setInterval(consoleDocuments, 1000);
+  ySocketIOServer.initialize();
 }
