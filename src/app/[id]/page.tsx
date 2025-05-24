@@ -1,20 +1,25 @@
+"use client";
 import dynamic from "next/dynamic";
 
 const ExcalidrawWrapper = dynamic(
   async () => (await import("@/excalidraw/index")).default,
   {
+    loading: () => <div>Loading...</div>,
     ssr: false,
-  },
+  }
 );
 
-export default async function Page(props: {
-    params: {
-        id: string;
-    }
-}) {
-    const { id } = props.params;
-    // const setApi = useCollab();
+type Props = {
+  params: { id: string };
+  searchParams: { [key: string]: string | string[] | undefined };
+};
+
+export default function Page({ params, searchParams }: Props) {
+  const { id } = params;
+  const isUseIndexedDb = searchParams.indexeddb === "true";
   return (
-    <ExcalidrawWrapper />
+    <>
+      <ExcalidrawWrapper id={id} isUseIndexedDb={isUseIndexedDb} />
+    </>
   );
 }
