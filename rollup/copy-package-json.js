@@ -27,7 +27,6 @@ export function copyPackageJson() {
         const simplifiedPackageJson = {
           name: packageJson.name,
           version: packageJson.version,
-          type: 'module', // 确保使用ESM
           dependencies: packageJson.dependencies
         };
         
