@@ -15,22 +15,20 @@ const config = {
     sourcemap: true
   },
   external: [
-    'next',
-    'react',
-    'react-dom',
-    'socket.io',
-    'socket.io-client',
-    'yjs',
-    'y-socket.io',
-    'y-protocols',
-    'y-webrtc',
-    'y-excalidraw',
-    'y-indexeddb',
-    'http',
-    'url',
-    'path',
-    'fs',
-    'os'
+    "@excalidraw/excalidraw",
+    "next",
+    "react",
+    "react-dom",
+    "socket.io",
+    "socket.io-client",
+    "lib0",
+    "y-leveldb",
+    "y-protocols",
+    "y-excalidraw",
+    "y-indexeddb",
+    "y-socket.io",
+    "y-webrtc",
+    "yjs"
   ],
   plugins: [
     nodeResolve({
