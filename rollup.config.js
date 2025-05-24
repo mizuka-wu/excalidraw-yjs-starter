@@ -4,6 +4,7 @@ import typescript from '@rollup/plugin-typescript';
 import json from '@rollup/plugin-json';
 import { terser } from 'rollup-plugin-terser';
 import copy from 'rollup-plugin-copy';
+import replace from 'rollup-plugin-replace';
 import { copyPackageJson } from './rollup/copy-package-json.js';
 import { copyNextConfig } from './rollup/copy-next-config.js';
 
@@ -31,6 +32,9 @@ const config = {
     "yjs"
   ],
   plugins: [
+    replace({
+      'process.env.NODE_ENV': JSON.stringify('production')
+    }),
     nodeResolve({
       preferBuiltins: true,
       extensions: ['.ts', '.js', '.json']
