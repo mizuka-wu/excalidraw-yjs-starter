@@ -45,7 +45,10 @@ const config = {
         target: 'ES2020',
         sourceMap: true,
         outDir: 'dist'
-      }
+      },
+      include: ['src/**/*.ts'],
+      exclude: ['node_modules/**'],
+      outputToFilesystem: true
     }),
     json(),
     terser(),
