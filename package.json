@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --loader ts-node/esm --inspect --no-warnings src/server.ts",
+    "dev": "node --loader ts-node/esm --inspect --no-warnings src/server/index.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
