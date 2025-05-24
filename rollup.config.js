@@ -51,7 +51,7 @@ const config = {
       outputToFilesystem: true
     }),
     json(),
-    terser(),
+    // terser(),
     copyPackageJson(),
     copyNextConfig(),
     copy({
