@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "node --loader ts-node/esm --inspect --no-warnings --experimental-specifier-resolution=node src/server/index.ts",
-    "build": "next build",
+    "build": "npm run build:next && npm run build:server",
+    "build:next": "next build",
+    "build:server": "node --loader ts-node/esm build-server.js",
     "start": "next start",
     "lint": "next lint"
   },
