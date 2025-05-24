@@ -45,9 +45,7 @@ export const useCollab = (
         ? new IndexeddbPersistence(`excalidraw-${id || "default"}`, ydoc)
         : null;
 
-    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${
-      location.host
-    }`;
+    const url = `${location.protocol}//${location.host}`;
     const socketIoProvider = id
       ? new SocketIOProvider(url, `${id}`, ydoc, {})
       : null;
