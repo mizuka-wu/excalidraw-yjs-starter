@@ -3,6 +3,7 @@ import * as Y from "yjs";
 import { ExcalidrawBinding } from "y-excalidraw";
 import { Awareness } from "y-protocols/awareness";
 
+import { WebrtcProvider } from "y-webrtc";
 import { IndexeddbPersistence } from "y-indexeddb";
 import { SocketIOProvider } from "y-socket.io";
 import type { RefObject } from "react";
@@ -31,8 +32,16 @@ export const useCollab = (
     const yElements = ydoc.getArray<Y.Map<any>>("elements"); // structure = {el: NonDeletedExcalidrawElement, pos: string}
     const yAssets = ydoc.getMap("assets");
 
+    const isLocalMode = !id;
+
+    const webRTCProvider = isLocalMode
+      ? new WebrtcProvider(`excalidraw-local`, ydoc, {
+          signaling: [],
+        })
+      : null;
+
     const indexeddbPersistence =
-      isUseIndexedDb || !id
+      isUseIndexedDb || isLocalMode
         ? new IndexeddbPersistence(`excalidraw-${id || "default"}`, ydoc)
         : null;
 
@@ -55,17 +64,23 @@ export const useCollab = (
         }
       : undefined;
 
+    const awareness: Awareness =
+      socketIoProvider?.awareness ||
+      webRTCProvider?.awareness ||
+      new Awareness(ydoc);
+
     const binding = new ExcalidrawBinding(
       yElements,
       yAssets,
       api,
-      socketIoProvider?.awareness || new Awareness(ydoc),
+      awareness,
       undoManagerOptions
     );
 
     const originDestroy = binding.destroy;
     binding.destroy = () => {
       originDestroy.call(binding);
+      webRTCProvider?.destroy();
       indexeddbPersistence?.destroy();
       socketIoProvider?.destroy();
     };
