@@ -25,7 +25,7 @@ const config = {
     "lib0",
     "y-leveldb",
     "y-protocols",
-    "y-excalidraw",
+    "@mizuka-wu/y-excalidraw",
     "y-indexeddb",
     "y-socket.io",
     "y-webrtc",

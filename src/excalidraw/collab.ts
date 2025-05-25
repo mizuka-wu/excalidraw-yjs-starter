@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import * as Y from "yjs";
-import { ExcalidrawBinding } from "y-excalidraw";
+import { ExcalidrawBinding } from "@mizuka-wu/y-excalidraw";
 import { Awareness } from "y-protocols/awareness";
 
 import { WebrtcProvider } from "y-webrtc";
