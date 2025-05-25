@@ -12,12 +12,14 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 interface CollabOptions {
   id?: string;
   isUseIndexedDb?: boolean;
+  isStoreApiEnable?: boolean;
 }
 
 export const useCollab = (
   excalidrawRef: RefObject<HTMLElement | null>,
   options: CollabOptions = {}
 ) => {
+  const isStoreApiEnable = options.isStoreApiEnable ?? false;
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [binding, setBinding] = useState<ExcalidrawBinding | null>(null);
 
@@ -30,7 +32,7 @@ export const useCollab = (
     const ydoc = new Y.Doc();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const yElements = ydoc.getArray<Y.Map<any>>("elements"); // structure = {el: NonDeletedExcalidrawElement, pos: string}
-    const yAssets = ydoc.getMap("assets");
+    const yAssets = isStoreApiEnable ? null : ydoc.getMap("assets");
 
     const isLocalMode = !id;
 

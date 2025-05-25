@@ -12,7 +12,11 @@ const ExcalidrawWrapper: FC<{
   isUseIndexedDb?: boolean;
 }> = ({ id, isUseIndexedDb }) => {
   const excalidrawRef = useRef(null);
-  const { setApi, binding } = useCollab(excalidrawRef, { id, isUseIndexedDb });
+  const { setApi, binding } = useCollab(excalidrawRef, {
+    id,
+    isUseIndexedDb,
+    isStoreApiEnable,
+  });
   return (
     <div ref={excalidrawRef} style={{ height: "100vh", width: "100vw" }}>
       <Excalidraw
