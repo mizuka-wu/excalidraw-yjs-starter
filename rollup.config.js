@@ -5,6 +5,8 @@ import json from '@rollup/plugin-json';
 import { terser } from 'rollup-plugin-terser';
 import copy from 'rollup-plugin-copy';
 import replace from 'rollup-plugin-replace';
+import { dependencies } from './package.json';
+
 import { copyPackageJson } from './rollup/copy-package-json.js';
 import { copyNextConfig } from './rollup/copy-next-config.js';
 
@@ -15,22 +17,7 @@ const config = {
     format: 'cjs',
     sourcemap: true
   },
-  external: [
-    "@excalidraw/excalidraw",
-    "next",
-    "react",
-    "react-dom",
-    "socket.io",
-    "socket.io-client",
-    "lib0",
-    "y-leveldb",
-    "y-protocols",
-    "@mizuka-wu/y-excalidraw",
-    "y-indexeddb",
-    "y-socket.io",
-    "y-webrtc",
-    "yjs"
-  ],
+  external: Array.from(Object.keys(dependencies)),
   plugins: [
     replace({
       'process.env.NODE_ENV': JSON.stringify('production')

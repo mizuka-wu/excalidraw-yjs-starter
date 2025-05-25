@@ -5,6 +5,8 @@ import "@excalidraw/excalidraw/index.css";
 
 import { useCollab } from "./collab";
 
+const isStoreApiEnable = process.env.NEXT_PUBLIC_USE_STORE === "true";
+
 const ExcalidrawWrapper: FC<{
   id?: string;
   isUseIndexedDb?: boolean;

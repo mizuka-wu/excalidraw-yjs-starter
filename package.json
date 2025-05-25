@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --loader ts-node/esm --inspect --no-warnings --experimental-specifier-resolution=node src/server/index.ts",
+    "dev:next": "next dev",
     "build": "npm run build:next && npm run build:server",
     "build:next": "next build",
     "build:server": "rollup -c",
@@ -15,6 +16,7 @@
     "@excalidraw/excalidraw": "0.18.0",
     "@mizuka-wu/y-excalidraw": "2.0.13",
     "lib0": "0.2.52",
+    "minio": "^8.0.5",
     "next": "14.2.29",
     "react": "18.3.1",
     "react-dom": "18.3.1",
