@@ -6,6 +6,12 @@
 
 This is a minimalist starter project for locally deploying Excalidraw based on Next.js, YJS, and Socket.IO. Through YJS, it enables real-time collaboration and data storage. Currently, resources are also written to YJS, but in the future, this will be replaced with S3/MinIO for resource storage.
 
+### Online Demo
+
+To experience a version based on local IndexedDB and tab-to-tab collaboration, please visit: https://excalidraw-yjs-starter.vercel.app/
+
+**Note:** Due to Vercel limitations, the `/:id` route will not support real-time collaboration in the online demo. However, you can still enable local storage by adding `?indexeddb=true` to the URL.
+
 ### Project Structure
 
 - **Server-side YJS configuration**: Located in `src/server/collab.ts`

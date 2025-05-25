@@ -6,6 +6,12 @@
 
 这是一个精简的基于Next.js、YJS和Socket.IO的本地部署Excalidraw的启动项目。通过YJS，对数据进行协同以及存储。需要注意的是，目前的资源也是写入在YJS内的，之后会替换成通过配置S3/MinIO来替换资源存储这部分。
 
+## 在线演示
+
+如果想要体验一下基于本地indexeddb和tab间协同的版本的话，请访问：https://excalidraw-yjs-starter.vercel.app/
+
+**注意：**由于Vercel的限制，在线演示中 `/:id` 路由将无法使用实时协同功能。但是，您仍然可以通过在URL中添加 `?indexeddb=true` 来启用本地存储。
+
 ## 项目结构
 
 - **服务器端YJS配置**：位于`src/server/collab.ts`
