@@ -52,13 +52,16 @@ export const useCollab = (
       ? new SocketIOProvider(url, `${id}`, ydoc, {})
       : null;
 
+    const localOrigin = {};
     const undoManagerOptions = !!(
       excalidrawRef.current &&
       excalidrawRef.current.querySelector(".undo-redo-buttons")
     )
       ? {
           excalidrawDom: excalidrawRef.current,
-          undoManager: new Y.UndoManager(yElements),
+          undoManager: new Y.UndoManager(yElements, {
+            trackedOrigins: new Set([localOrigin]),
+          }),
         }
       : undefined;
 
