@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.0",
-    "@mizuka-wu/y-excalidraw": "^2.0.14",
+    "@mizuka-wu/y-excalidraw": "^2.0.15",
     "lib0": "0.2.52",
     "minio": "^8.0.5",
     "next": "14.2.29",
