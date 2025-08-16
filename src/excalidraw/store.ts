@@ -11,9 +11,12 @@ class ResourceManager {
   api: ExcalidrawImperativeAPI;
   processedFiles = new Set<string>();
   processingFiles = new Set<string>();
+  batchSize: number;
 
-  constructor(api: ExcalidrawImperativeAPI) {
+  constructor(api: ExcalidrawImperativeAPI, options?: { batchSize?: number }) {
     this.api = api;
+    // 批量更新数量，设置为 1 则表示单个完成就更新
+    this.batchSize = options?.batchSize ?? 5;
   }
 
   async getFiles(fileIds: string[]) {
@@ -21,81 +24,65 @@ class ResourceManager {
       return !this.processedFiles.has(id) && !this.processingFiles.has(id);
     });
 
-    if (needProcessFileIds.length) {
-      needProcessFileIds.forEach((id) => {
-        this.processingFiles.add(id);
-      });
+    if (!needProcessFileIds.length) return;
 
+    // 标记为处理中，避免重复请求
+    needProcessFileIds.forEach((id) => this.processingFiles.add(id));
+
+    const batch: BinaryFileData[] = [];
+
+    const flush = () => {
+      if (batch.length) {
+        // 一次性提交当前批次
+        const payload = batch.splice(0, batch.length);
+        this.api.addFiles(payload);
+      }
+    };
+
+    const tasks = needProcessFileIds.map(async (id) => {
       try {
-        const results = await Promise.allSettled(
-          needProcessFileIds.map(async (id) => {
-            // 获取文件并转换为dataURL
-            try {
-              const response = await fetch(
-                `${apiBase}?file=${encodeURIComponent(id)}&raw=true`
-              );
-
-              if (!response.ok) {
-                throw new Error(`获取文件失败: ${response.status}`);
-              }
-
-              // 获取文件内容并转换为Blob
-              const blob = await response.blob();
-
-              // 创建DataURL
-              return new Promise<{
-                id: string;
-                dataURL: string;
-                mimeType: string;
-              }>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  resolve({
-                    id,
-                    dataURL: reader.result as string,
-                    mimeType: this.getMimeTypeFromFileName(id),
-                  });
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-            } catch (error) {
-              console.error(`获取文件 ${id} 失败:`, error);
-              throw error;
-            }
-          })
+        const response = await fetch(
+          `${apiBase}?file=${encodeURIComponent(id)}&raw=true`
         );
 
-        const processedFiles: BinaryFileData[] = [];
-        results.forEach((result, index) => {
-          const id = needProcessFileIds[index]!;
-          if (result.status === "rejected") {
-            this.processingFiles.delete(id);
-          } else {
-            this.processedFiles.add(id);
-
-            if (result.status === "fulfilled") {
-              const { dataURL, mimeType } = result.value;
-              processedFiles.push({
-                id,
-                dataURL,
-                mimeType,
-                created: Date.now(),
-              } as BinaryFileData);
-            }
-          }
-        });
-
-        if (processedFiles.length) {
-          this.api.addFiles(processedFiles);
+        if (!response.ok) {
+          throw new Error(`获取文件失败: ${response.status}`);
         }
-      } catch (e: unknown) {
-        console.error(e);
-        needProcessFileIds.forEach((id) => {
-          this.processingFiles.delete(id);
+
+        const blob = await response.blob();
+
+        const { dataURL } = await new Promise<{ dataURL: string }>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve({ dataURL: reader.result as string });
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
         });
+
+        // 成功：更新状态并放入批次
+        this.processedFiles.add(id);
+        this.processingFiles.delete(id);
+
+        batch.push({
+          id,
+          dataURL,
+          mimeType: this.getMimeTypeFromFileName(id),
+          created: Date.now(),
+        } as BinaryFileData);
+
+        if (batch.length >= this.batchSize) {
+          flush();
+        }
+      } catch (error) {
+        console.error(`获取文件 ${id} 失败:`, error);
+        // 失败：仅移除 processing 状态，允许后续重试
+        this.processingFiles.delete(id);
       }
-    }
+    });
+
+    // 所有任务结束后，冲掉尾批
+    Promise.allSettled(tasks).then(() => {
+      flush();
+    });
   }
 
   /**
