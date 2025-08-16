@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.0",
-    "@mizuka-wu/y-excalidraw": "^2.0.15",
+    "@mizuka-wu/y-excalidraw": "^2.0.16",
     "lib0": "0.2.52",
     "minio": "^8.0.5",
     "next": "14.2.29",
@@ -46,5 +46,6 @@
     "rollup-plugin-terser": "7.0.2",
     "ts-node": "10.9.2",
     "typescript": "5.8.3"
-  }
+  },
+  "packageManager": "pnpm@10.11.0+sha512.6540583f41cc5f628eb3d9773ecee802f4f9ef9923cc45b69890fb47991d4b092964694ec3a4f738a420c918a333062c8b925d312f42e4f0c263eb603551f977"
 }
