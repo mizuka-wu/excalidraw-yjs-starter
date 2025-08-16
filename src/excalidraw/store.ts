@@ -44,6 +44,13 @@ class ResourceManager {
   processingFiles = new Set<string>();
   batchSize: number;
   maxConcurrency: number;
+  // 排队但未启动
+  queuedFiles = new Set<string>();
+  pendingQueue: string[] = [];
+  // 活动 worker 数
+  activeWorkers = 0;
+  // 提交到 Excalidraw 的批次
+  private batch: BinaryFileData[] = [];
 
   constructor(
     api: ExcalidrawImperativeAPI,
@@ -57,83 +64,125 @@ class ResourceManager {
   }
 
   async getFiles(fileIds: string[]) {
-    const needProcessFileIds = fileIds.filter((id) => {
-      return !this.processedFiles.has(id) && !this.processingFiles.has(id);
-    });
+    if (!fileIds?.length) return;
 
-    if (!needProcessFileIds.length) return;
+    // 基于最新优先级的重排：
+    // 1) 已在队列中的（queued）需要被“提升”到队头
+    // 2) 新加入的（既不在 processed/processing/queued）追加到队头
+    const toPromote: string[] = [];
+    const toQueue: string[] = [];
 
-    // 标记为处理中，避免重复请求
-    needProcessFileIds.forEach((id) => this.processingFiles.add(id));
-
-    const batch: BinaryFileData[] = [];
-
-    const flush = () => {
-      if (batch.length) {
-        // 一次性提交当前批次
-        const payload = batch.splice(0, batch.length);
-        this.api.addFiles(payload);
+    for (const id of fileIds) {
+      if (this.processedFiles.has(id) || this.processingFiles.has(id)) continue;
+      if (this.queuedFiles.has(id)) {
+        toPromote.push(id);
+      } else {
+        toQueue.push(id);
       }
+    }
+
+    // 将 toPromote 和 toQueue 依次插入队头（保持 fileIds 给出的相对优先顺序）
+    // 为了让第一个元素最终最靠前，这里反向遍历并 unshift
+    const insertAtHead = (id: string) => {
+      const idx = this.pendingQueue.indexOf(id);
+      if (idx !== -1) this.pendingQueue.splice(idx, 1);
+      this.pendingQueue.unshift(id);
+      this.queuedFiles.add(id);
     };
 
-    // 基于最大并发的任务调度，确保优先顺序生效
-    let cursor = 0;
-    const runNext = async (): Promise<void> => {
-      const id = needProcessFileIds[cursor++];
-      if (!id) return;
-      try {
-        const response = await fetch(
-          `${apiBase}?file=${encodeURIComponent(id)}&raw=true`
-        );
+    for (let i = toPromote.length - 1; i >= 0; i--) {
+      insertAtHead(toPromote[i]);
+    }
+    for (let i = toQueue.length - 1; i >= 0; i--) {
+      insertAtHead(toQueue[i]);
+    }
 
-        if (!response.ok) {
-          throw new Error(`获取文件失败: ${response.status}`);
-        }
+    // 按需启动 worker，保持并发上限
+    this.maybeSpawnWorkers();
+  }
 
-        const blob = await response.blob();
+  private flushBatch() {
+    if (this.batch.length) {
+      const payload = this.batch.splice(0, this.batch.length);
+      this.api.addFiles(payload);
+    }
+  }
 
-        const { dataURL } = await new Promise<{ dataURL: string }>(
-          (resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve({ dataURL: reader.result as string });
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
+  private maybeSpawnWorkers() {
+    while (this.activeWorkers < this.maxConcurrency && this.pendingQueue.length) {
+      this.activeWorkers++;
+      // 不 await，保持并发
+      this.runNext();
+    }
+  }
+
+  private async runNext(): Promise<void> {
+    try {
+      while (true) {
+        const id = this.pendingQueue.shift();
+        if (!id) break;
+
+        // 领取任务
+        this.queuedFiles.delete(id);
+        this.processingFiles.add(id);
+
+        let success = false;
+        try {
+          const response = await fetch(
+            `${apiBase}?file=${encodeURIComponent(id)}&raw=true`
+          );
+
+          if (!response.ok) {
+            throw new Error(`获取文件失败: ${response.status}`);
           }
-        );
 
-        // 成功：更新状态并放入批次
-        this.processedFiles.add(id);
-        this.processingFiles.delete(id);
+          const blob = await response.blob();
+          const { dataURL } = await new Promise<{ dataURL: string }>(
+            (resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve({ dataURL: reader.result as string });
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            }
+          );
 
-        batch.push({
-          id,
-          dataURL,
-          mimeType: this.getMimeTypeFromFileName(id),
-          created: Date.now(),
-        } as BinaryFileData);
+          // 成功：更新状态并放入批次
+          this.processedFiles.add(id);
+          success = true;
 
-        if (batch.length >= this.batchSize) {
-          flush();
-        }
-      } catch (error) {
-        console.error(`获取文件 ${id} 失败:`, error);
-        // 失败：仅移除 processing 状态，允许后续重试
-        this.processingFiles.delete(id);
-      } finally {
-        // 继续调度下一个
-        if (cursor <= needProcessFileIds.length - 1) {
-          await runNext();
+          this.batch.push({
+            id,
+            dataURL,
+            mimeType: this.getMimeTypeFromFileName(id),
+            created: Date.now(),
+          } as BinaryFileData);
+
+          if (this.batch.length >= this.batchSize) {
+            this.flushBatch();
+          }
+        } catch (error) {
+          console.error(`获取文件 ${id} 失败:`, error);
+        } finally {
+          // 结束 processing 状态
+          this.processingFiles.delete(id);
+          // 如果失败，则允许后续重试（不加入 processed）
+          if (!success) {
+            // 可选择性：将失败的任务放回队列末尾，避免阻塞
+            // 这里不自动重试，交由后续 onChange 调用时再入队
+          }
         }
       }
-    };
-
-    const workersCount = Math.min(this.maxConcurrency, needProcessFileIds.length);
-    const workers = Array.from({ length: workersCount }, () => runNext());
-
-    // 所有任务结束后，冲掉尾批
-    Promise.allSettled(workers).then(() => {
-      flush();
-    });
+    } finally {
+      this.activeWorkers--;
+      if (this.pendingQueue.length) {
+        // 还有任务未处理，补位
+        this.activeWorkers++;
+        this.runNext();
+      } else if (this.activeWorkers === 0) {
+        // 所有任务结束，冲掉尾批
+        this.flushBatch();
+      }
+    }
   }
 
   /**
