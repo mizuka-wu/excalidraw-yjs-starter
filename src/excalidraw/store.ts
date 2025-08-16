@@ -7,16 +7,53 @@ import type {
 
 const apiBase = "/api";
 
+// 简化版的可视区域判断（近似），用于优先级排序
+// 以元素的 x/y/width/height 作为 AABB，与视口在场景坐标系下的 AABB 相交判断
+const isElementInViewportSimple = (
+  element: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  },
+  viewportWidth: number,
+  viewportHeight: number,
+  appState: Partial<{ zoom: { value: number }; scrollX: number; scrollY: number }>
+): boolean => {
+  const zoom = appState?.zoom?.value ?? 1;
+  const scrollX = appState?.scrollX ?? 0;
+  const scrollY = appState?.scrollY ?? 0;
+
+  // 视口在场景坐标中的范围（Excalidraw 的 scrollX/scrollY 是场景坐标偏移）
+  const viewX1 = scrollX;
+  const viewY1 = scrollY;
+  const viewX2 = scrollX + viewportWidth / zoom;
+  const viewY2 = scrollY + viewportHeight / zoom;
+
+  const x1 = element.x;
+  const y1 = element.y;
+  const x2 = element.x + element.width;
+  const y2 = element.y + element.height;
+
+  return viewX1 <= x2 && viewY1 <= y2 && viewX2 >= x1 && viewY2 >= y1;
+};
+
 class ResourceManager {
   api: ExcalidrawImperativeAPI;
   processedFiles = new Set<string>();
   processingFiles = new Set<string>();
   batchSize: number;
+  maxConcurrency: number;
 
-  constructor(api: ExcalidrawImperativeAPI, options?: { batchSize?: number }) {
+  constructor(
+    api: ExcalidrawImperativeAPI,
+    options?: { batchSize?: number; maxConcurrency?: number }
+  ) {
     this.api = api;
     // 批量更新数量，设置为 1 则表示单个完成就更新
     this.batchSize = options?.batchSize ?? 5;
+    // 最大并发数，控制请求启动顺序生效
+    this.maxConcurrency = options?.maxConcurrency ?? 6;
   }
 
   async getFiles(fileIds: string[]) {
@@ -39,7 +76,11 @@ class ResourceManager {
       }
     };
 
-    const tasks = needProcessFileIds.map(async (id) => {
+    // 基于最大并发的任务调度，确保优先顺序生效
+    let cursor = 0;
+    const runNext = async (): Promise<void> => {
+      const id = needProcessFileIds[cursor++];
+      if (!id) return;
       try {
         const response = await fetch(
           `${apiBase}?file=${encodeURIComponent(id)}&raw=true`
@@ -51,12 +92,14 @@ class ResourceManager {
 
         const blob = await response.blob();
 
-        const { dataURL } = await new Promise<{ dataURL: string }>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve({ dataURL: reader.result as string });
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
+        const { dataURL } = await new Promise<{ dataURL: string }>(
+          (resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve({ dataURL: reader.result as string });
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          }
+        );
 
         // 成功：更新状态并放入批次
         this.processedFiles.add(id);
@@ -76,11 +119,19 @@ class ResourceManager {
         console.error(`获取文件 ${id} 失败:`, error);
         // 失败：仅移除 processing 状态，允许后续重试
         this.processingFiles.delete(id);
+      } finally {
+        // 继续调度下一个
+        if (cursor <= needProcessFileIds.length - 1) {
+          await runNext();
+        }
       }
-    });
+    };
+
+    const workersCount = Math.min(this.maxConcurrency, needProcessFileIds.length);
+    const workers = Array.from({ length: workersCount }, () => runNext());
 
     // 所有任务结束后，冲掉尾批
-    Promise.allSettled(tasks).then(() => {
+    Promise.allSettled(workers).then(() => {
       flush();
     });
   }
@@ -190,12 +241,38 @@ export const useStore = () => {
     setResourceManager(resourceManager);
 
     api.onChange((elements) => {
+      // 从 API 获取视图状态（zoom/scroll），若不可用则采用默认
+      const appState = (api as any).getAppState ? (api as any).getAppState() : {};
+
+      const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
+      const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
+
+      // 标记在视口内的 fileId（简化判断）
+      const inViewportFileIds = new Set<string>();
+      elements.forEach((element) => {
+        if (element.isDeleted) return;
+        if (!Reflect.has(element, "fileId")) return;
+        try {
+          const inView = isElementInViewportSimple(
+            element as any,
+            viewportWidth,
+            viewportHeight,
+            appState
+          );
+          if (inView) {
+            const fileId = Reflect.get(element, "fileId") as string;
+            inViewportFileIds.add(fileId);
+          }
+        } catch {
+          // 容错：计算失败则忽略优先标记
+        }
+      });
+
       const neddProcessFileIds: string[] = elements
         .filter((element) => {
           if (element.isDeleted) return false;
           if (Reflect.has(element, "fileId")) {
             const fileId = Reflect.get(element, "fileId") as string;
-
             return (
               !resourceManager.processedFiles.has(fileId) &&
               !resourceManager.processingFiles.has(fileId)
@@ -203,11 +280,16 @@ export const useStore = () => {
           }
           return false;
         })
-        .map((element) => {
-          return Reflect.get(element, "fileId") as string;
-        });
+        .map((element) => Reflect.get(element, "fileId") as string);
+
       if (neddProcessFileIds.length) {
-        resourceManager.getFiles(neddProcessFileIds);
+        // 视口优先排序：在视口内的优先
+        const prioritized = neddProcessFileIds.slice().sort((a, b) => {
+          const aIn = inViewportFileIds.has(a);
+          const bIn = inViewportFileIds.has(b);
+          return aIn === bIn ? 0 : aIn ? -1 : 1;
+        });
+        resourceManager.getFiles(prioritized);
       }
     });
 
